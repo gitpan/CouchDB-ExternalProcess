@@ -9,7 +9,7 @@ use JSON::Any;
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '0.01';
+    $VERSION     = '0.02';
     @ISA         = qw(Exporter);
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
@@ -29,8 +29,8 @@ easy
 
 =head1 SYNOPSIS
 
-  In C<MyProcess.pm>:
-  ---------------------------------------------------------------------------
+In C<MyProcess.pm>:
+
   package MyProcess;
   use base qw/CouchDB::ExternalProcess/;
 
@@ -54,29 +54,27 @@ easy
       return $response;
   }
 
-  ---------------------------------------------------------------------------
+In CouchDB's C<local.ini>:
 
-  In CouchDB's C<local.ini>:
-  ---------------------------------------------------------------------------
   [external]
   my_process = perl -MMyProcess -e 'MyProcess->new->run'
 
   [httpd_db_handlers]
   _my_process = {couch_httpd_external, handle_external_req, <<"my_process">>}
-  ---------------------------------------------------------------------------
 
-  Now queries to the database I<databaseName> as:
+
+Now queries to the database I<databaseName> as:
   
-    C<http://myserver/databaseName/_my_process/hello_world/?greeting_target=Sally>
+  http://myserver/databaseName/_my_process/hello_world/?greeting_target=Sally
 
-  Will return a document with Content-Type "text/html" and a body containing:
+Will return a document with Content-Type "text/html" and a body containing:
 
-    C<Hello, Sally!>
+  Hello, Sally!
 
-  The power really comes when the External Process API is used to generate and
-  parse JSON requests.
+For more information, including the request and response data structure formats,
+see:
 
-  See L<http://wiki.apache.org/couchdb/ExternalProcesses>
+L<http://wiki.apache.org/couchdb/ExternalProcesses>
   
 =head1 DESCRIPTION
 
@@ -91,8 +89,8 @@ This module makes creating CouchDB External Processes simple and concise.
 
 =head2 new
 
- Create an external process, just needs C<run()> to be called to start processing
- STDIN.
+Create an external process, just needs C<run()> to be called to start processing
+STDIN.
 
 =cut
 sub new
@@ -108,11 +106,11 @@ sub new
 
 =head2 run
 
- Run the action, read lines from STDIN and process them one by one
+Run the action, read lines from STDIN and process them one by one
 
- Named arguments can be passed to run like run(a => 1, c => 2). 
- 
- Accepted arguments are:
+Named arguments can be passed to run like run(a => 1, c => 2). 
+
+Accepted arguments are:
 
 =over
 
@@ -158,10 +156,10 @@ sub run {
 
 =head2 jsonParser
 
- getter/setter for the JSON::Any instance used for an instance.
+getter/setter for the JSON::Any instance used for an instance.
 
- All methods of an ExternalProcess class should use this processor so they can
- share the same magical 'true' and 'false' markers.
+All methods of an ExternalProcess class should use this processor so they can
+share the same magical 'true' and 'false' markers.
 
 =cut
 sub jsonParser {
@@ -172,14 +170,14 @@ sub jsonParser {
 
 =head1 CHILD CLASS METHODS
 
- These methods may be overridden by child classes to add processing to various
- parts of the script and request handling lifecycle
+These methods may be overridden by child classes to add processing to various
+parts of the script and request handling lifecycle
 
 =cut
 
 =head2 _init
 
- Called at program startup before any requests are processed.
+Called at program startup before any requests are processed.
 
 =cut
 sub _init {
@@ -187,7 +185,7 @@ sub _init {
 
 =head2 _destroy
 
- Called when STDIN is closed, or at program termination (if possible)
+Called when STDIN is closed, or at program termination (if possible)
 
 =cut
 sub _destroy {
@@ -195,8 +193,8 @@ sub _destroy {
 
 =head2 _before
 
- Receives, and can manipulate or replace, the JSON request as hash reference
- produced by JSON::Any before the requested action is processed. 
+Receives, and can manipulate or replace, the JSON request as hash reference
+produced by JSON::Any before the requested action is processed. 
 
 =cut
 sub _before {
@@ -205,8 +203,8 @@ sub _before {
 
 =head2 _after
 
- Passed the return value of whatever action was called, as a hash reference
- parseable by JSON::Any. May modify or replace it.
+Passed the return value of whatever action was called, as a hash reference
+parseable by JSON::Any. May modify or replace it.
 
 =cut
 sub _after {
@@ -215,21 +213,17 @@ sub _after {
 
 =head2 _error
 
- Passed any errors that occur during processing. Returns a hash reference to be
- used as the response.
+Passed any errors that occur during processing. Returns a hash reference to be
+used as the response.
 
- The default response for an error $error is:
+The default response for an error $error is:
 
-=over
-
-    {
-        code => 500,
-        json => {
-            error => $error
-        }
-    }
-
-=back
+  {
+      code => 500,
+      json => {
+          error => $error
+      }
+  }
 
 =cut
 
@@ -245,11 +239,11 @@ sub _error {
 
 =head2 _extract_action_name
 
- Extracts the name of the action to handle a request. 
- 
- Receives the request object. Defaults to:
+Extracts the name of the action to handle a request. 
 
- C<$req->{path}->[2]>
+Receives the request object. Defaults to:
+
+C<$req->{path}->[2]>
 
 =cut
 sub _extract_action_name {
@@ -257,14 +251,53 @@ sub _extract_action_name {
     return $req->{path}->[2];
 }
 
-=head1 INTERNAL METHODS
+=head1 PROVIDED ACTIONS
+
+=head2 _meta
+
+Returns metadata about the methods we're providing
+
+If your module has the following Actions:
+
+  sub foo :Action :Description("Foo!") :Args("Some data") {
+    # ... 
+  }
+
+  sub bar :Action
+          :Description("Get your Bar on!")
+          :Args({name => "Name of something", color => "RGB Color Value"}) 
+  {
+    # ... 
+  }
+
+Then requesting the '_meta' action will return the following JSON:
+
+  {
+    "foo": {
+        "description": "Foo!",
+        "args": "Some data"
+    },
+    "bar": }
+        "description": "Get your Bar on!",
+        "args": "Some data"
+    }
+  }
+
+=cut
+sub _meta {
+    return {
+        json => \%metadata,
+    };
+}
+
+=head1 INTERNAL METHODS - Ignore these!
 
 =head2 _process
 
- Process a request.
+Process a request.
 
- Receives one argument, a JSON string, does all CouchDB::ExternalProcess
- processing and returns a valid External Process response.
+Receives one argument, a JSON string, does all CouchDB::ExternalProcess
+processing and returns a valid External Process response.
 
 =cut
 sub _process {
@@ -308,20 +341,9 @@ sub _process {
 }
 
 
-=head2 _meta
-
- Returns metadata about the methods we're providing
-
-=cut
-sub _meta {
-    return {
-        json => \%metadata,
-    };
-}
-
 =head2 Action
 
- Processes 'Action' Attribute
+Processes 'Action' Attribute
 
 =cut
 sub Action :ATTR {
@@ -341,7 +363,7 @@ sub Action :ATTR {
 
 =head2 Description
 
- Processes 'Description' Attribute
+Processes 'Description' Attribute
 
 =cut
 sub Description :ATTR {
@@ -355,7 +377,7 @@ sub Description :ATTR {
 
 =head2 Args
 
- Processes 'Args' Attribute
+Processes 'Args' Attribute
 
 =cut
 sub Args :ATTR {
@@ -369,7 +391,7 @@ sub Args :ATTR {
 
 =head2 attrArgs
 
- Helper method to process Attribute::Handlers arguments
+Helper method to process Attribute::Handlers arguments
 
 =cut
 sub attrArgs {
